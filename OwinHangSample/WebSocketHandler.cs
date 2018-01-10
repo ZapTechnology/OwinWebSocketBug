@@ -1,51 +1,36 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Owin;
-using Owin;
-using OwinHangSample;
-using Website;
+using System.Web;
+using System.Web.WebSockets;
 
-[assembly: OwinStartup(typeof(OwinStartupWrapper))]
-
-namespace Website
+namespace OwinHangSample
 {
-    public class OwinStartupWrapper
+    public class WebSocketHandler : IHttpHandler
     {
-        public void Configuration(IAppBuilder app)
-        {
-            app.Map("/ws", SomeAction);
-        }
+        private static Task mLastSendAsync;
 
-        private void SomeAction(IAppBuilder app)
+        public void ProcessRequest(HttpContext context)
         {
-            app.Use(HttpHandler);
-        }
-
-        private async Task HttpHandler(IOwinContext context, Func<Task> next)
-        {
-            Action<IDictionary<string, object>, Func<IDictionary<string, object>, Task>> accept =
-                context.Get<Action<IDictionary<string, object>, Func<IDictionary<string, object>, Task>>>("websocket.Accept");
-
-            if (accept != null)
+            //Checks if the query is WebSocket request.  
+            if (context.IsWebSocketRequest)
             {
-                accept(new Dictionary<string, object>(),
-                    websocketContext => OnAccept(websocketContext, context));
-
-                return;
+                //If yes, we attach the asynchronous handler. 
+                context.AcceptWebSocketRequest(OnAccept);
             }
-
-            await next();
         }
+
+        public bool IsReusable { get { return false; } }
+
+
 
         //Asynchronous request handler.
-        public async Task OnAccept(IDictionary<string, object> websocketContext, IOwinContext context)
+        public async Task OnAccept(AspNetWebSocketContext aspNetWebSocketContext)
         {
             //Gets the current WebSocket object.
-            OwinWebSocketWrapper webSocket = new OwinWebSocketWrapper(websocketContext);
+            WebSocket webSocket = aspNetWebSocketContext.WebSocket;
 
             /*We define a certain constant which will represent
             size of received data. It is established by us and 
@@ -64,7 +49,7 @@ namespace Website
             await Task.Run(() => HandleSocket(webSocket, receivedDataBuffer, cancellationToken, memoryStream));
         }
 
-        private async Task HandleSocket(OwinWebSocketWrapper webSocket, ArraySegment<byte> receivedDataBuffer,
+        private async Task HandleSocket(WebSocket webSocket, ArraySegment<byte> receivedDataBuffer,
             CancellationToken cancellationToken, MemoryStream memoryStream)
         {
             //Checks WebSocket state.
@@ -75,15 +60,19 @@ namespace Website
                 memoryStream.Position = 0;
 
                 //Sends data back.
-                await webSocket.SendAsync(new ArraySegment<byte>(memoryStream.ToArray()),
+                Task lastSendAsync = webSocket.SendAsync(new ArraySegment<byte>(memoryStream.ToArray()),
                     WebSocketMessageType.Text, true, cancellationToken);
+
+                mLastSendAsync = lastSendAsync;
+
+                await lastSendAsync;
 
                 memoryStream.Position = 0;
                 memoryStream.SetLength(0);
             }
         }
 
-        private async Task<WebSocketReceiveResult> ReadMessage(IWebSocketWrapper webSocket, ArraySegment<byte> receivedDataBuffer, MemoryStream memoryStream)
+        private async Task<WebSocketReceiveResult> ReadMessage(WebSocket webSocket, ArraySegment<byte> receivedDataBuffer, MemoryStream memoryStream)
         {
             WebSocketReceiveResult webSocketReceiveResult;
 
