@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Owin;
 using Owin;
 using OwinHangSample;
+using Serilog;
 using Website;
 
 [assembly: OwinStartup(typeof(OwinStartupWrapper))]
@@ -18,6 +19,9 @@ namespace Website
         public void Configuration(IAppBuilder app)
         {
             app.Map("/ws", SomeAction);
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.File("c:\\temp\\log.txt", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
         }
 
         private void SomeAction(IAppBuilder app)
@@ -75,8 +79,13 @@ namespace Website
                 memoryStream.Position = 0;
 
                 //Sends data back.
-                await webSocket.SendAsync(new ArraySegment<byte>(memoryStream.ToArray()),
+                var array = memoryStream.ToArray();
+                string message = System.Text.Encoding.Default.GetString(array);
+                Log.Information("Sending back message {Message}", message);
+                await webSocket.SendAsync(new ArraySegment<byte>(array),
                     WebSocketMessageType.Text, true, cancellationToken);
+
+                Log.Information("Message sent {Message}", message);
 
                 memoryStream.Position = 0;
                 memoryStream.SetLength(0);
