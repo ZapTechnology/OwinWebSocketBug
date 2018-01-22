@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Reflection;
+using System.Threading;
 using WebSocket4Net;
+using WebSocket4Net.Protocol;
 
 namespace WebSocketClient
 {
@@ -10,6 +13,7 @@ namespace WebSocketClient
             WebSocket webSocket = new WebSocket("ws://localhost:55167/ws");
 
             int i = 0;
+            IProtocolProcessor protocolProcessor = typeof(WebSocket).GetProperty("ProtocolProcessor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(webSocket) as IProtocolProcessor;
 
             webSocket.MessageReceived +=
                 (sender, eventArgs) =>
@@ -20,6 +24,7 @@ namespace WebSocketClient
                         Console.WriteLine(i);
                         i++;
                         webSocket.Send(i.ToString());
+                        protocolProcessor.SendPing(webSocket, DateTime.Now.ToString());
                     }
                     else
                     {
