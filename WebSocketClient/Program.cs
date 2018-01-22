@@ -14,11 +14,16 @@ namespace WebSocketClient
             webSocket.MessageReceived +=
                 (sender, eventArgs) =>
                 {
+                    Console.WriteLine("Recieved: " + eventArgs.Message);
                     if (eventArgs.Message == i.ToString())
                     {
                         Console.WriteLine(i);
                         i++;
                         webSocket.Send(i.ToString());
+                    }
+                    else
+                    {
+                        Console.WriteLine("Respond doesn't match: " + i.ToString());
                     }
                 };
 
